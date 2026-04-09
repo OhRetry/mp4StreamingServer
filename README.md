@@ -1,180 +1,253 @@
-# mp4StreammingServer
-This is a web file server for your computer. You can explore your computer's file system using other device's web browser.   
-For example, If you run this program at your computer A, you can access A's file using mobile device B or other computer C.   
-It is only possible when B,C can access A through network by router(Wi-Fi,LAN) or public ip or etc.   
-<br/>
-This explorer provides video/image's thumbnail so it will be helpful when you explore a lot of video/image.  
-And you can play/watch Video(H264),Audio(mp3,AAC..),Image(jpg,png,..) and Document(text,pdf..) files. 
+# 이 레포지토리는 2020.12~2021.03에 진행된 개인 프로젝트의 백업입니다.
+---------
+# 기술적 특징
+### 파일시스템 탐색
+서버에는 root가 설정되어 있습니다. 사용자는 root를 기준으로 상대경로를 통해 파일 시스템을 탐색합니다. 어떤 경로에 대한 탐색 요청을 받으면 먼저 해당 경로가 폴더인지, 파일인지를 fs.stat를 통해 비동기적으로 판단합니다.
+
+디렉터리라면 해당 디렉터리 내의 모든 경로를 fs.stat를 통해 비동기적으로 탐색하며, [디렉터리, 비디오, 이미지, 파일]로 구분하고 promise를 반환합니다. 모든 promise가 완료되면 context 정보와 함께 디렉터리 렌더링 페이지로 보냅니다. 디렉터리 렌더링 페이지에서는 어떤 경로가 이미지나 비디오라면 썸네일을 표시합니다. 이 외의 파일은 확장자에 따라 미리 지정된 아이콘을 표시합니다.
+
+파일이라면 해당 파일이 비디오인지 확인합니다. 비디오라면 비디오 재생 페이지로 렌더링합니다. 이 외의 파일(이미지, 텍스트, pdf 등)은 미리 정의된 Content-Type과 함께 응답합니다. 이후 브라우저가 적절한 Content-Type에 따라 미디어를 표시합니다.
+
+### 비디오 재생
+비디오 재생은 브라우저의 기본 기능을 이용했습니다. mp4나 ts확장자를 재생 가능합니다. "/video/비디오경로"에서 비디오 재생 요청을 처리합니다. 
+원활한 비디오 탐색을 위해 중요한 것은 Range 헤더를 처리하는 것입니다. mp4파일 재생 시 mp4 플레이어가 moov헤더를 먼저 읽고, 어떤 부분을 재생하기 위해 필요한 파일의 범위를 알수 있습니다. mp4 플레이어가 Range헤더와 함께 요청을 보내면 서버는 이것을 파싱해서 파일의 필요한 부분만 자르고 응답합니다. 
+이때 적절한 헤더와 함께 상태 코드는 206 partial content로 응답하게 됩니다.
+따라서 moov헤더가 뒤에 있는 영상의 경우 탐색이 불가능하고 영상을 처음부터 끝까지 재생해야 합니다. 필요하다면 moov헤더는 재인코딩 없이 간단하게 앞으로 옮길 수 있습니다.
+
+### 썸네일 표시
+비디오 파일은 "thumbnails/비디오경로"로 썸네일 이미지 요청을 보냅니다. 요청을 받았을 때 필요한 이미지가 썸네일 캐시에 존재한다면 바로 응답합니다. 새로운 썸네일을 생성해야 한다면 ffmpeg를 서브프로세스로 연 뒤에 비디오의 썸네일을 생성하고 파이프로 데이터를 받는 preomise를 생성합니다. 이후 썸네일 캐시에 데이터를 저장하고 요청에 응답합니다. 썸네일 캐시가 꽉 차면 오래된 것부터 삭제합니다.
+관리자는 설정에서 썸네일의 품질이나 캐시의 크기를 설정할 수 있습니다
 
 ---------
+## 아래 내용은 이전 백업에서 작성한 영어 설명문
+---------
 
-# how to use
+# mp4StreammingServer
+<img width="2748" height="1339" alt="output" src="https://github.com/user-attachments/assets/6eecfe3d-8c18-411e-a031-6050cd9d9ba3" />
+<img width="2748" height="1094" alt="output2" src="https://github.com/user-attachments/assets/7a884eef-0ef2-4a06-b7b1-90e5238b98e3" />
 
-## you need nodejs and ffmpeg to run this program  
-This program runs on nodejs so you must install nodejs to use this program.  
-You can explore the filesystem and watch the contents without ffmpeg, but the explorer will not privide thumbnail of the video.
+This is a web-based file server for your computer. You can browse your computer's file system using a web browser on another device.
+For example, if you run this program on computer A, you can access its files from mobile device B or another computer C.
+This is only possible when devices B and C can access computer A over a network (e.g., via a router such as Wi-Fi or LAN, or through a public IP address).
+This file explorer provides thumbnails for videos and images, which is helpful when browsing a large number of media files.
+You can also play or view video (H.264), audio (MP3, AAC), image (JPG, PNG), and document (text, PDF) files.
 
-## install nodejs
-https://nodejs.org/ko/download/  
-Go to this page and download nodejs.
+---------
+# How to Use
 
-## install ffmpeg
-https://ffmpeg.org/download.html  
-Go to this page and download ffmpeg and register \bin folder to PATH.  
+## Requirements
 
-If you don't need video's thumbnail or play video other than mp4, you can pass this process.
+### Node.js and FFmpeg
 
-## download program
-https://github.com/OhRetry/mp4StreammingServer/archive/refs/heads/main.zip  
-OR  
-https://github.com/OhRetry/mp4StreammingServer -> code -> download Zip  
+This program runs on Node.js, so you must install Node.js to use it.
 
-Download the program's zip file from the links above and unzip them.  
+You can browse the file system and view contents without FFmpeg, but video thumbnails will not be generated.
 
-If you unzipped downloaded folder to C:\Users\administrator\Desktop\mp4StreammingServer  
-Open terminal and type below command
+---
+
+## Install Node.js
+
+https://nodejs.org/ko/download/
+Go to this page and download Node.js.
+
+---
+
+## Install FFmpeg
+
+https://ffmpeg.org/download.html
+Go to this page, download FFmpeg, and add the `bin` folder to your system PATH.
+
+If you do not need video thumbnails or support for formats other than MP4, you can skip this step.
+
+---
+
+## Download the Program
+
+https://github.com/OhRetry/mp4StreammingServer/archive/refs/heads/main.zip
+OR
+https://github.com/OhRetry/mp4StreammingServer → Code → Download ZIP
+
+Download the ZIP file from the links above and extract it.
+
+If you extracted the folder to:
+
+```
+C:\Users\administrator\Desktop\mp4StreammingServer
+```
+
+Open a terminal and run:
+
 ```
 cd "C:\Users\administrator\Desktop\mp4StreammingServer"
 node install
 ```
 
+---
 
-## run program
-If you have unzipped downloaded folder to C:\Users\administrator\Desktop\mp4StreammingServer
-You can run the program by below command
+## Run the Program
+
+If the folder is located at:
+
+```
+C:\Users\administrator\Desktop\mp4StreammingServer
+```
+
+Run the following command:
+
 ```
 cd "C:\Users\administrator\Desktop\mp4StreammingServer"
 node server.js
-```  
-If you are using windows, you can easily run program by executing the mp4StreammingServer.bat
-<br/>
-<br/>
-<br/>
+```
+
+On Windows, you can also run the program easily by executing `mp4StreammingServer.bat`.
+
+---
 <img width="393" alt="캡처1" src="https://user-images.githubusercontent.com/87797481/180237162-0e697cea-71f4-4452-a551-d2e4797d83bc.PNG">
-<br/>
-After running the program, you can see a screen like above      
-<br/>
-<br/>
-<br/>
+After running the program, you will see a screen like this.
+
 <img width="345" alt="캡처2" src="https://user-images.githubusercontent.com/87797481/180337008-27832a34-9ddc-4aa3-9c12-6341a34a49ba.PNG">
-<br/>
-Type server's address to your browser and you can see the home(index) page.
-<br/>
-<br/>
-id is your account's id.
-<br/>
-authority is your account's privileges.   
-<br/>
+(Type the server address in your browser to access the home page.)
 
-There are no registered users(account) in Default Setting.  
-Therefore, the server does not login check and you have administrator privileges.  
+* **ID**: Your account ID
+* **Authority**: Your account privileges
 
-Now, you can explore your filesystem. Click explorer Icon.  
-<br/>
-If you click Setting Icon, you can go to Administrator page. This Icon is only available when you have admin authority.
-<br/>
-# Setting
-In Administrator page, you can set these things.  
-<br/>
+By default, no user accounts are registered.
+Therefore, login is not required and you have administrator privileges.
 
-1. root path
-2. port
-3. use https?
-4. Network Interface
-5. users(account)
+You can now explore your file system by clicking the Explorer icon.
 
-<br/>
-And at the bottom of the page, you can see these 3 buttons.
+Click the Settings icon to access the administrator page.
+(This icon is only available with admin privileges.)
+# Settings
 <img width="145" alt="캡처0" src="https://user-images.githubusercontent.com/87797481/180365624-030aa92f-931c-44d5-9d1d-2f7e5d9ab468.PNG">
-<br/>
-If you click 'Home' button, you can go back to Home(Index) page.
-<br/>
-If you click 'Save' Button, you can save Setting in this page.
-<br/>
-If you click 'Reset' Button, you can reset Setting to default.
-<br/>
+On the Administrator page, you can configure the following:
 
+1. Root Path
+2. Port
+3. Use HTTPS
+4. Network Interface
+5. Users (Accounts)
 
-## root path
-root path is a highest folder that you allows users.  
-If you set root path to D:\contents\movies and your private ip is 192.168.219.108,<br/> users can access D:\contents\movies\good1.mp4 by http://192.168.219.108:3000/root/good1.mp4  
-<br/>
-No one can access to D:\contents\music because users can access only subfolder of root.
-<br/>
-<br/>
-Default is C:\
+At the bottom of the page, you will find three buttons:
 
-## port
-server will use this port number. Default is 3000.
-<br/>
-If other program is using 3000, server will automatically change port to 3001,3002,...
+* **Home**: Return to the home (index) page
+* **Save**: Save the current settings
+* **Reset**: Reset settings to their default values
 
-## use https?
-If you set this property true, server will use https.
-<br/>
-If you set this property false, server will use http.
-<br/>
-<br/>
+---
 
-This feature is for people who use public router or public IP and don't want to reveal your packet to others.
-<br/>
-<br/>
-If you are using your Wi-Fi with other people, router's administrator can see your packet information.  
-For example if you access http://192.168.219.108:3000/root/movie/example1.mp4 , administrator can know that you accessed 192.168.219.108:3000/root/movie/example.mp4 and even can know the movies's contents.  
-<br/>
-If you want to hide packet information In this case, you can use https.
-<br/>
-With https, packet is encrypted and administrator can only know IP address 192.168.219.108:3000 that you accessed.
-<br/>
-<br/>
-You need cert.pem and key.pem file in cert folder to apply https.
-<br/>
-Default cert.pem and key.pem are in cert folder so you can use https. But you need to make your own cert.pem, key.pem if you concern security.
-<br/>
-You can make cert.pem and key.pem with openssl. If you're interested, search openssl.
-<br/>
-<br/>
-Default is false.
-## network interface
-Using the network device name specified here, the server searches for the ip address and tells you the url that users on the same network can access.
-<br/>
+## Root Path
+
+The root path is the highest-level directory that users are allowed to access.
+
+For example, if you set the root path to:
+
+```text
+D:\contents\movies
+```
+
+and your private IP address is `192.168.219.108`, users can access:
+
+```text
+D:\contents\movies\good1.mp4
+```
+
+via:
+
+```text
+http://192.168.219.108:3000/root/good1.mp4
+```
+
+Users cannot access directories outside the root path.
+For example, `D:\contents\music` is not accessible.
+
+**Default:** `C:\`
+
+---
+
+## Port
+
+The server uses this port number.
+**Default:** `3000`
+
+If another program is already using port 3000, the server will automatically switch to the next available port (e.g., 3001, 3002, ...).
+
+---
+
+## Use HTTPS
+
+If enabled, the server will use HTTPS instead of HTTP.
+
+This feature is useful if you are using a public network or router and want to protect your data.
+
+For example, when using HTTP:
+
+```text
+http://192.168.219.108:3000/root/movie/example1.mp4
+```
+
+A network administrator may be able to see:
+
+* The full URL you accessed
+* Potentially the content of the file
+
+With HTTPS:
+
+* The data is encrypted
+* Only the destination address (IP and port) is visible
+
+To enable HTTPS, you need `cert.pem` and `key.pem` files in the `cert` folder.
+
+Default certificate files are included, but for better security, you should generate your own using OpenSSL.
+
+**Default:** Disabled
+
+---
+
+## Network Interface
 <img width="393" alt="캡처1" src="https://user-images.githubusercontent.com/87797481/180237162-0e697cea-71f4-4452-a551-d2e4797d83bc.PNG">
-<br/>
-Here, the private ip address 192.168.219.108 was found by searching for a device name "Wi-Fi".
-<br/>
-However, this is just a convenience function that gives you an address. 
-<br/>
-If you are connected to Wi-Fi, you have no problem accessing it using your private IP address 192.168.219.108 even if you do not specify network interface.
-<br/>
-Therefore, this property has no effect on the actual functionality.
-<br/>
-<br/>
-The default is Wi-Fi.
+The server uses the specified network interface to detect your local IP address and display the accessible URL.
 
-## users
-In this Setting, you can manage accounts of system.
-<br/>
+For example, if you select `"Wi-Fi"`, the server may detect:
+
+```text
+192.168.219.108
+```
+
+This feature is only for convenience.
+Even if you do not specify a network interface, you can still access the server using your local IP address.
+
+**Default:** Wi-Fi
+
+---
+
+## Users
 <img width="479" alt="캡처3" src="https://user-images.githubusercontent.com/87797481/180366514-4236c8da-2ab4-4798-8716-2c259131b76c.PNG">
-<br/>
-In default, there are no accounts in Setting. 
-<br/>
-In this case, the login check process is omitted and admin privileges are given.
-<br/>
-<br/>
-<br/>
 <img width="602" alt="캡처4" src="https://user-images.githubusercontent.com/87797481/180367134-bf6fe578-bfb6-4b8d-8286-f9f99b4d324e.PNG">
-<br/>
-If you click Add button, you can create new account.
-<br/>
-<br/>
-<br/>
 <img width="615" alt="캡처5" src="https://user-images.githubusercontent.com/87797481/180367245-1a54329f-c2cc-4003-a4fc-6bcf04327de2.PNG">
-<br/>
-Type id,password and admin. you have to set only true or false to admin property.
-<br/>
-In this case, user, admin account is created. user has Guest Authority and admin has Admin Authority.
-<br/>
-<br/>
-If you want to delete a user, just click delete button on the right.
+In this section, you can manage user accounts.
+
+By default, no accounts are registered.
+In this case:
+
+* Authentication is disabled
+* Administrator privileges are granted automatically
+
+### Add User
+
+Click the **Add** button to create a new account.
+
+Enter:
+
+* ID
+* Password
+* Admin (true / false)
+
+If `Admin` is set to `true`, the user has administrator privileges.
+Otherwise, the user has guest-level access.
+
+### Delete User
+
+To delete a user, click the **Delete** button next to the account.
 
 
